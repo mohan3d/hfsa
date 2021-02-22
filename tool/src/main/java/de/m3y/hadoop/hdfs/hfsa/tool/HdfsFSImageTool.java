@@ -1,14 +1,21 @@
 package de.m3y.hadoop.hdfs.hfsa.tool;
 
-import java.io.File;
-import java.io.PrintStream;
-import java.io.PrintWriter;
-
 import org.apache.log4j.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
-import picocli.CommandLine.*;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Help;
+import picocli.CommandLine.IExecutionExceptionHandler;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.RunLast;
+import picocli.CommandLine.ScopeType;
+
+import java.io.File;
+import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.nio.file.Path;
 
 import static org.apache.log4j.Logger.getRootLogger;
 
@@ -23,7 +30,7 @@ public class HdfsFSImageTool {
      */
     abstract static class BaseCommand implements Runnable {
         @Option(names = "-v", description = "Turns on verbose output. Use `-vv` for debug output.",
-                scope = ScopeType.INHERIT) // option is shared with subcommands
+            scope = ScopeType.INHERIT) // option is shared with subcommands
         public void setVerbose(boolean[] verbose) {
             final org.apache.log4j.Logger rootLogger = getRootLogger();
             if (null == verbose) {
@@ -41,31 +48,35 @@ public class HdfsFSImageTool {
         }
 
         @Parameters(paramLabel = "FILE", arity = "1",
-                description = "FSImage file to process.")
+            description = "FSImage file to process.")
         File fsImageFile;
 
+        @Parameters(paramLabel = "PATH", arity = "1",
+            description = "CSV output path.")
+        Path outputPath;
+
         @Option(names = {"-p", "--path"},
-                split = ",",
-                description = "Directory path(s) to start traversing (default: ${DEFAULT-VALUE}).")
+            split = ",",
+            description = "Directory path(s) to start traversing (default: ${DEFAULT-VALUE}).")
         String[] dirs = new String[]{"/"};
 
         @Option(names = {"-fun", "--filter-by-user"},
-                description = "Filter user name by <regexp>.")
+            description = "Filter user name by <regexp>.")
         String userNameFilter;
     }
 
     @Command(name = "hfsa-tool",
-            header = "Analyze Hadoop FSImage file for user/group reports",
-            footer = "Runs @|bold summary|@ command by default.",
-            mixinStandardHelpOptions = true,
-            versionProvider = VersionProvider.class,
-            showDefaultValues = true,
-            subcommands = {
-                    SummaryReportCommand.class,
-                    SmallFilesReportCommand.class,
-                    InodeInfoCommand.class,
-                    PathReportCommand.class
-            }
+        header = "Analyze Hadoop FSImage file for user/group reports",
+        footer = "Runs @|bold summary|@ command by default.",
+        mixinStandardHelpOptions = true,
+        versionProvider = VersionProvider.class,
+        showDefaultValues = true,
+        subcommands = {
+            SummaryReportCommand.class,
+            SmallFilesReportCommand.class,
+            InodeInfoCommand.class,
+            PathReportCommand.class
+        }
     )
     static class MainCommand extends BaseCommand {
         PrintStream out = HdfsFSImageTool.out;
@@ -73,10 +84,9 @@ public class HdfsFSImageTool {
 
         @Override
         public void run() {
-            // Default main command is the default summary
-            SummaryReportCommand summaryReport = new SummaryReportCommand();
-            summaryReport.mainCommand = this;
-            summaryReport.run();
+            AbstractReportCommand command = new CSVReportCommand();
+            command.mainCommand = this;
+            command.run();
         }
     }
 
@@ -93,8 +103,8 @@ public class HdfsFSImageTool {
                 commandLine.getErr().println(commandLine.getColorScheme().errorText(ex.getMessage()));
             }
             return commandLine.getExitCodeExceptionMapper() != null
-                    ? commandLine.getExitCodeExceptionMapper().getExitCode(ex)
-                    : commandLine.getCommandSpec().exitCodeOnExecutionException();
+                ? commandLine.getExitCodeExceptionMapper().getExitCode(ex)
+                : commandLine.getCommandSpec().exitCodeOnExecutionException();
         };
 
         CommandLine cmd = new CommandLine(new MainCommand());
