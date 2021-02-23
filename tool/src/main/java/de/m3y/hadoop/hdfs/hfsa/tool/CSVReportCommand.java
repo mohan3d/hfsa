@@ -242,7 +242,7 @@ public class CSVReportCommand extends AbstractReportCommand {
           buf.add(p.getUserName());
           buf.add(p.getGroupName());
           buf.add(iNodeId);
-          buf.add(new Path(path).depth());
+          buf.add(new Path(absolutPath).depth());
           buf.add(1);
           buf.add(0);
           break;
@@ -264,7 +264,7 @@ public class CSVReportCommand extends AbstractReportCommand {
           buf.add(p.getUserName());
           buf.add(p.getGroupName());
           buf.add(iNodeId);
-          buf.add(new Path(path).depth());
+          buf.add(new Path(absolutPath).depth());
           buf.add(iNodeAccResult.filesCount);
           buf.add(iNodeAccResult.dirsCount);
           break;
@@ -284,7 +284,7 @@ public class CSVReportCommand extends AbstractReportCommand {
           buf.add(p.getUserName());
           buf.add(p.getGroupName());
           buf.add(iNodeId);
-          buf.add(new Path(path).depth());
+          buf.add(new Path(absolutPath).depth());
           buf.add(0);
           buf.add(0);
           break;
