@@ -38,7 +38,6 @@ public class CSVReportCommand extends AbstractReportCommand {
 
   private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm";
   private static final DateTimeFormatter fmt = DateTimeFormatter.ofPattern(DATE_FORMAT);
-  private static final String DELIMITER = ",";
 
   @Override
   public void run() {
@@ -161,7 +160,6 @@ public class CSVReportCommand extends AbstractReportCommand {
     @Override
     public void onPreVisit(INode inode, INode parent, String path) {
       if (inode.hasDirectory()) {
-        // TODO: remove synchronized since it's only applied to root before parallel stream execution.
         synchronized (this.accumulatedResults) {
           accumulatedResults.put(inode.getId(), new AccumulatedResult(0, 0, 1, 0));
         }
@@ -172,31 +170,29 @@ public class CSVReportCommand extends AbstractReportCommand {
     public void onPostVisit(INode inode, INode parent, String path) {
       AccumulatedResult iNodeAccResult;
 
-      synchronized (this.accumulatedResults) {
-        if (inode.hasDirectory()) {
+      if (inode.hasDirectory()) {
+        synchronized (this.accumulatedResults) {
           iNodeAccResult = accumulatedResults.get(inode.getId());
-        } else if (inode.hasFile()) {
-          FsImageProto.INodeSection.INodeFile f = inode.getFile();
-          iNodeAccResult =
-              new AccumulatedResult(getFileSize(f), 1, 0, f.getBlocksCount());
-        } else {
-          iNodeAccResult = new AccumulatedResult();
         }
+      } else if (inode.hasFile()) {
+        FsImageProto.INodeSection.INodeFile f = inode.getFile();
+        iNodeAccResult =
+            new AccumulatedResult(getFileSize(f), 1, 0, f.getBlocksCount());
+      } else {
+        iNodeAccResult = new AccumulatedResult();
+      }
 
-        // Update parent
-        // Root will have a null parent.
-        if (parent != null) {
-          long parentId = parent.getId();
-          accumulatedResults.replace(parentId, accumulatedResults.get(parentId).merge(iNodeAccResult));
+      // Update parent
+      // Root will have a null parent.
+      if (parent != null) {
+        long parentId = parent.getId();
+        synchronized (this.accumulatedResults) {
+          accumulatedResults.replace(parentId,
+              accumulatedResults.get(parentId).merge(iNodeAccResult));
         }
       }
 
-      // TODO: refactor.
-      final String iNodeName = inode.getName().toStringUtf8();
-      final String absolutPath =
-          path.length() > 1 ? path + '/' + iNodeName : path + iNodeName;
-
-      reportINode(inode, iNodeAccResult, absolutPath);
+      reportINode(inode, iNodeAccResult, path);
     }
 
     private void reportINode(INode iNode, AccumulatedResult iNodeAccResult, String path) {
@@ -223,13 +219,17 @@ public class CSVReportCommand extends AbstractReportCommand {
       char iNodeType = '-';
 
       long iNodeId = iNode.getId();
+
+      final String iNodeName = iNode.getName().toStringUtf8();
+      final String absolutPath = path.length() > 1 ? path + '/' + iNodeName : path + iNodeName;
+
       long permission = fsImageData.getPermission(iNode);
       PermissionStatus p = fsImageData.getPermissionStatus(permission);
 
       switch (iNode.getType()) {
         case FILE:
           FsImageProto.INodeSection.INodeFile file = iNode.getFile();
-          buf.add(path);
+          buf.add(absolutPath);
           buf.add(file.getReplication());
           buf.add(formatDate(file.getModificationTime()));
           buf.add(formatDate(file.getAccessTime()));
@@ -249,7 +249,7 @@ public class CSVReportCommand extends AbstractReportCommand {
         case DIRECTORY:
           FsImageProto.INodeSection.INodeDirectory dir = iNode.getDirectory();
           iNodeType = 'd';
-          buf.add(path);
+          buf.add(absolutPath);
           buf.add(0);
           buf.add(formatDate(dir.getModificationTime()));
           buf.add(formatDate(0));
@@ -271,7 +271,7 @@ public class CSVReportCommand extends AbstractReportCommand {
         case SYMLINK:
           FsImageProto.INodeSection.INodeSymlink s = iNode.getSymlink();
           iNodeType = 'l';
-          buf.add(path);
+          buf.add(absolutPath);
           buf.add(0);
           buf.add(formatDate(s.getModificationTime()));
           buf.add(formatDate(s.getModificationTime()));
